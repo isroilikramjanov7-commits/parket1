@@ -15,12 +15,14 @@ import {
   History,
   Archive,
   BarChart3,
-  Calendar
+  Calendar,
+  Camera,
+  Image as ImageIcon
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
 
-const API_BASE = 'https://parket-crm-backend-1.onrender.com/api';
+const API_BASE = 'https://parket-1.onrender.com/api';
 
 const Modal = ({ isOpen, onClose, title, children }) => {
   if (!isOpen) return null;
@@ -37,17 +39,99 @@ const Modal = ({ isOpen, onClose, title, children }) => {
   );
 };
 
+const CameraModal = ({ isOpen, onClose, onCapture }) => {
+  const videoRef = React.useRef(null);
+  const [stream, setStream] = useState(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      startCamera();
+    } else {
+      stopCamera();
+    }
+  }, [isOpen]);
+
+  const startCamera = async () => {
+    try {
+      const s = await navigator.mediaDevices.getUserMedia({ 
+        video: { facingMode: 'environment' } 
+      });
+      setStream(s);
+      if (videoRef.current) {
+        videoRef.current.srcObject = s;
+      }
+    } catch (err) {
+      alert("Kameraga ruxsat berilmadi yoki kamera topilmadi");
+      onClose();
+    }
+  };
+
+  const stopCamera = () => {
+    if (stream) {
+      stream.getTracks().forEach(track => track.stop());
+      setStream(null);
+    }
+  };
+
+  const capture = () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = videoRef.current.videoWidth;
+    canvas.height = videoRef.current.videoHeight;
+    canvas.getContext('2d').drawImage(videoRef.current, 0, 0);
+    const data = canvas.toDataURL('image/jpeg');
+    onCapture(data);
+    onClose();
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/90 backdrop-blur-2xl animate-fade">
+      <div className="w-full max-w-lg bg-black rounded-3xl overflow-hidden shadow-2xl relative border border-white/20">
+        <video 
+          ref={videoRef} 
+          autoPlay 
+          playsInline 
+          className="w-full h-[50vh] object-cover bg-gray-900"
+        />
+        <div className="p-8 flex justify-between items-center bg-zinc-900 border-t border-white/10">
+          <button 
+            type="button"
+            onClick={onClose} 
+            className="flex flex-col items-center gap-2 text-white/60 hover:text-white transition-all"
+          >
+            <div className="p-4 bg-white/10 rounded-full"><X size={24}/></div>
+            <span className="text-xs font-medium">Yopish</span>
+          </button>
+          <button 
+            type="button"
+            onClick={capture} 
+            className="flex flex-col items-center gap-2 group"
+          >
+            <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center border-8 border-white/20 group-hover:scale-110 transition-all">
+              <div className="w-12 h-12 bg-white rounded-full border-2 border-black/10 shadow-inner"/>
+            </div>
+            <span className="text-xs font-bold text-white uppercase tracking-tighter">Rasmga olish</span>
+          </button>
+          <div className="w-16"/> {/* Spacer for balance */}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const App = () => {
   const [products, setProducts] = useState([]);
   const [sales, setSales] = useState([]);
   const [search, setSearch] = useState('');
   const [formData, setFormData] = useState({
-    code: '', name: '', size: '', quantity: '', costUsd: '', saleUsd: '', dollarRate: '12500', category: 'luxury'
+    code: '', name: '', size: '', quantity: '', costUsd: '', saleUsd: '', dollarRate: '12500', category: 'luxury', imageUrl: ''
   });
   const [editingId, setEditingId] = useState(null);
   
   const [sellModal, setSellModal] = useState({ isOpen: false, product: null, mode: 'piece', value: '' });
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, productId: null });
+  const [cameraModalOpen, setCameraModalOpen] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -72,6 +156,17 @@ const App = () => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setFormData({ ...formData, imageUrl: reader.result });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
@@ -82,7 +177,7 @@ const App = () => {
         await axios.post(`${API_BASE}/products`, formData);
       }
       setFormData({
-        code: '', name: '', size: '', quantity: '', costUsd: '', saleUsd: '', dollarRate: '12500', category: 'luxury'
+        code: '', name: '', size: '', quantity: '', costUsd: '', saleUsd: '', dollarRate: '12500', category: 'luxury', imageUrl: ''
       });
       fetchData();
     } catch (err) {
@@ -94,7 +189,8 @@ const App = () => {
     setEditingId(product.id);
     setFormData({
       code: product.code, name: product.name, size: product.size, quantity: product.quantity,
-      costUsd: product.costUsd, saleUsd: product.saleUsd, dollarRate: product.dollarRate, category: product.category
+      costUsd: product.costUsd, saleUsd: product.saleUsd, dollarRate: product.dollarRate, 
+      category: product.category, imageUrl: product.imageUrl || ''
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -230,6 +326,28 @@ const App = () => {
               <option value="luxury">Luxury</option>
               <option value="golden_art_floor">Golden Art Floor</option>
             </select>
+            
+            <div className="flex flex-col gap-2">
+              <button 
+                type="button"
+                onClick={() => setCameraModalOpen(true)}
+                className="btn-success py-3 px-4 text-sm w-full"
+              >
+                <Camera size={18} /> Kamera ochish
+              </button>
+              {formData.imageUrl && (
+                <div className="relative w-full h-24 bg-gray-100 rounded-xl overflow-hidden border-2 border-primary/20">
+                  <img src={formData.imageUrl} className="w-full h-full object-cover" alt="Preview" />
+                  <button 
+                    type="button" 
+                    onClick={() => setFormData({...formData, imageUrl: ''})} 
+                    className="absolute top-1 right-1 p-1.5 bg-danger rounded-full text-white shadow-lg"
+                  >
+                    <X size={14}/>
+                  </button>
+                </div>
+              )}
+            </div>
             <div className="lg:col-span-4 flex gap-4 mt-2">
               <button type="submit" className="btn-primary flex-1 py-4">
                 {editingId ? 'O\'zgarishlarni saqlash' : 'Omborga qo\'shish'}
@@ -265,11 +383,20 @@ const App = () => {
             <div className="table-container">
               <table>
                 <thead>
-                  <tr><th>Kod</th><th>Mahsulot</th><th>Omborda</th><th>Sotish Narxi</th><th>Amallar</th></tr>
+                  <tr><th>Rasm</th><th>Kod</th><th>Mahsulot</th><th>Omborda</th><th>Sotish Narxi</th><th>Amallar</th></tr>
                 </thead>
                 <tbody>
                   {filteredProducts.filter(p => p.category === cat).map(p => (
                     <tr key={p.id}>
+                      <td>
+                        {p.imageUrl ? (
+                          <img src={p.imageUrl} className="w-12 h-12 object-cover rounded-lg border border-gray-200" alt="Product" />
+                        ) : (
+                          <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center text-gray-400">
+                            <ImageIcon size={20} />
+                          </div>
+                        )}
+                      </td>
                       <td><span className={`badge ${cat === 'luxury' ? 'bg-amber-500/10 text-amber-500' : 'bg-emerald-500/10 text-emerald-500'}`}>{p.code}</span></td>
                       <td><div className="font-bold">{p.name}</div><div className="text-xs text-muted">m²: {p.size}</div></td>
                       <td><div className="font-bold">{Math.round(p.quantity)} dona</div><div className="text-xs text-muted">{p.totalArea.toFixed(2)} m²</div></td>
@@ -313,6 +440,12 @@ const App = () => {
           </div>
         </div>
       </main>
+
+      <CameraModal 
+        isOpen={cameraModalOpen} 
+        onClose={() => setCameraModalOpen(false)} 
+        onCapture={(img) => setFormData({ ...formData, imageUrl: img })} 
+      />
 
       <style>{`
         .animate-fade { animation: fadeIn 0.3s ease-out; }
