@@ -77,9 +77,9 @@ const CameraModal = ({ isOpen, onClose, onCapture }) => {
     const video = videoRef.current;
     const canvas = document.createElement('canvas');
     
-    // Max dimensions for storage optimization
-    const MAX_WIDTH = 300;
-    const MAX_HEIGHT = 300;
+    // Max dimensions for better clarity
+    const MAX_WIDTH = 500;
+    const MAX_HEIGHT = 500;
     
     let width = video.videoWidth;
     let height = video.videoHeight;
@@ -101,8 +101,8 @@ const CameraModal = ({ isOpen, onClose, onCapture }) => {
     const ctx = canvas.getContext('2d');
     ctx.drawImage(video, 0, 0, width, height);
     
-    // Convert to JPEG with 0.4 quality (extreme size reduction)
-    const data = canvas.toDataURL('image/jpeg', 0.4);
+    // Convert to JPEG with 0.7 quality (good balance of clarity and size)
+    const data = canvas.toDataURL('image/jpeg', 0.7);
     onCapture(data);
     onClose();
   };
@@ -184,7 +184,7 @@ const App = () => {
         const img = new Image();
         img.onload = () => {
           const canvas = document.createElement('canvas');
-          const MAX_SIZE = 300;
+          const MAX_SIZE = 500;
           let width = img.width;
           let height = img.height;
 
@@ -205,7 +205,7 @@ const App = () => {
           const ctx = canvas.getContext('2d');
           ctx.drawImage(img, 0, 0, width, height);
           
-          const compressedData = canvas.toDataURL('image/jpeg', 0.4);
+          const compressedData = canvas.toDataURL('image/jpeg', 0.7);
           setFormData({ ...formData, imageUrl: compressedData });
         };
         img.src = event.target.result;
