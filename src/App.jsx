@@ -77,7 +77,7 @@ const CameraModal = ({ isOpen, onClose, onCapture }) => {
     const video = videoRef.current;
     const canvas = document.createElement('canvas');
     
-    // Max dimensions for better clarity
+    // High quality dimensions for clarity
     const MAX_WIDTH = 500;
     const MAX_HEIGHT = 500;
     
@@ -101,8 +101,8 @@ const CameraModal = ({ isOpen, onClose, onCapture }) => {
     const ctx = canvas.getContext('2d');
     ctx.drawImage(video, 0, 0, width, height);
     
-    // Convert to JPEG with 0.7 quality (good balance of clarity and size)
-    const data = canvas.toDataURL('image/jpeg', 0.7);
+    // Convert to JPEG with 0.8 quality for high clarity
+    const data = canvas.toDataURL('image/jpeg', 0.8);
     onCapture(data);
     onClose();
   };
@@ -162,6 +162,7 @@ const App = () => {
   const [sellModal, setSellModal] = useState({ isOpen: false, product: null, mode: 'piece', value: '' });
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, productId: null });
   const [cameraModalOpen, setCameraModalOpen] = useState(false);
+  const [previewImage, setPreviewImage] = useState(null);
 
   useEffect(() => {
     localStorage.setItem('products_db', JSON.stringify(products));
@@ -184,7 +185,7 @@ const App = () => {
         const img = new Image();
         img.onload = () => {
           const canvas = document.createElement('canvas');
-          const MAX_SIZE = 500;
+          const MAX_SIZE = 800;
           let width = img.width;
           let height = img.height;
 
@@ -205,7 +206,7 @@ const App = () => {
           const ctx = canvas.getContext('2d');
           ctx.drawImage(img, 0, 0, width, height);
           
-          const compressedData = canvas.toDataURL('image/jpeg', 0.7);
+          const compressedData = canvas.toDataURL('image/jpeg', 0.8);
           setFormData({ ...formData, imageUrl: compressedData });
         };
         img.src = event.target.result;
@@ -471,7 +472,12 @@ const App = () => {
                     <tr key={p.id}>
                       <td>
                         {p.imageUrl ? (
-                          <img src={p.imageUrl} className="w-12 h-12 object-cover rounded-lg border border-gray-200" alt="Product" />
+                          <img 
+                            src={p.imageUrl} 
+                            className="w-12 h-12 object-cover rounded-lg border border-gray-200 cursor-pointer hover:scale-110 transition-transform" 
+                            alt="Product" 
+                            onClick={() => setPreviewImage(p.imageUrl)}
+                          />
                         ) : (
                           <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center text-gray-400">
                             <ImageIcon size={20} />
@@ -527,6 +533,12 @@ const App = () => {
         onClose={() => setCameraModalOpen(false)} 
         onCapture={(img) => setFormData({ ...formData, imageUrl: img })} 
       />
+
+      <Modal isOpen={!!previewImage} onClose={() => setPreviewImage(null)} title="Rasm ko'rinishi">
+        <div className="flex justify-center">
+          <img src={previewImage} className="w-full h-auto rounded-2xl shadow-2xl" alt="Full Preview" />
+        </div>
+      </Modal>
 
       <style>{`
         .animate-fade { animation: fadeIn 0.3s ease-out; }
