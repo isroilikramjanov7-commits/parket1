@@ -121,8 +121,14 @@ const CameraModal = ({ isOpen, onClose, onCapture }) => {
 };
 
 const App = () => {
-  const [products, setProducts] = useState([]);
-  const [sales, setSales] = useState([]);
+  const [products, setProducts] = useState(() => {
+    const saved = localStorage.getItem('products_db');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [sales, setSales] = useState(() => {
+    const saved = localStorage.getItem('sales_db');
+    return saved ? JSON.parse(saved) : [];
+  });
   const [search, setSearch] = useState('');
   const [formData, setFormData] = useState({
     code: '', name: '', size: '', quantity: '', costUsd: '', saleUsd: '', dollarRate: '12500', category: 'luxury', imageUrl: ''
@@ -133,27 +139,17 @@ const App = () => {
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, productId: null });
   const [cameraModalOpen, setCameraModalOpen] = useState(false);
 
-  const fetchData = useCallback(async () => {
-    try {
-      const [prodRes, saleRes] = await Promise.all([
-        axios.get(`${API_BASE}/products`),
-        axios.get(`${API_BASE}/sales`)
-      ]);
-      setProducts(prodRes.data);
-      setSales(saleRes.data);
-    } catch (err) {
-      console.error('Error fetching data:', err);
-    }
-  }, []);
+  useEffect(() => {
+    localStorage.setItem('products_db', JSON.stringify(products));
+  }, [products]);
 
   useEffect(() => {
-    fetchData();
-    const interval = setInterval(fetchData, 2000);
-    return () => clearInterval(interval);
-  }, [fetchData]);
+    localStorage.setItem('sales_db', JSON.stringify(sales));
+  }, [sales]);
 
   const handleInputChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
   };
 
   const handleFileChange = (e) => {
@@ -167,45 +163,52 @@ const App = () => {
     }
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
-    try {
-      if (editingId) {
-        await axios.put(`${API_BASE}/products/${editingId}`, formData);
-        setEditingId(null);
-      } else {
-        await axios.post(`${API_BASE}/products`, formData);
-      }
-      setFormData({
-        code: '', name: '', size: '', quantity: '', costUsd: '', saleUsd: '', dollarRate: '12500', category: 'luxury', imageUrl: ''
-      });
-      fetchData();
-    } catch (err) {
-      alert(err.response?.data?.message || 'Xatolik yuz berdi');
+    const newProduct = {
+      ...formData,
+      id: editingId || Date.now(),
+      size: parseFloat(formData.size),
+      quantity: parseFloat(formData.quantity),
+      costUsd: parseFloat(formData.costUsd),
+      saleUsd: parseFloat(formData.saleUsd),
+      dollarRate: parseFloat(formData.dollarRate)
+    };
+
+    if (editingId) {
+      setProducts(products.map(p => p.id === editingId ? newProduct : p));
+      setEditingId(null);
+    } else {
+      setProducts([...products, newProduct]);
     }
+
+    setFormData({
+      code: '', name: '', size: '', quantity: '', costUsd: '', saleUsd: '', dollarRate: '12500', category: 'luxury', imageUrl: ''
+    });
   };
 
   const handleEdit = (product) => {
     setEditingId(product.id);
     setFormData({
-      code: product.code, name: product.name, size: product.size, quantity: product.quantity,
-      costUsd: product.costUsd, saleUsd: product.saleUsd, dollarRate: product.dollarRate, 
-      category: product.category, imageUrl: product.imageUrl || ''
+      code: product.code, 
+      name: product.name, 
+      size: product.size.toString(), 
+      quantity: product.quantity.toString(),
+      costUsd: product.costUsd.toString(), 
+      saleUsd: product.saleUsd.toString(), 
+      dollarRate: product.dollarRate.toString(), 
+      category: product.category, 
+      imageUrl: product.imageUrl || ''
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const confirmDelete = async () => {
-    try {
-      await axios.delete(`${API_BASE}/products/${deleteModal.productId}`);
-      setDeleteModal({ isOpen: false, productId: null });
-      fetchData();
-    } catch (err) {
-      alert('Xatolik');
-    }
+  const confirmDelete = () => {
+    setProducts(products.filter(p => p.id !== deleteModal.productId));
+    setDeleteModal({ isOpen: false, productId: null });
   };
 
-  const confirmSell = async () => {
+  const confirmSell = () => {
     const { product, mode, value } = sellModal;
     const val = parseFloat(value);
     if (!val || val <= 0) return alert('Miqdorni kiriting');
@@ -215,20 +218,31 @@ const App = () => {
 
     if (qty > product.quantity) return alert('Omborda yetarli emas!');
 
-    try {
-      const sumUsd = area * product.saleUsd;
-      const sumSom = area * product.saleSom;
-      await Promise.all([
-        axios.post(`${API_BASE}/products/${product.id}/sell`, { qty, area }),
-        axios.post(`${API_BASE}/sales`, {
-          productCode: product.code, productName: product.name, qty, area, sumSom, sumUsd
-        })
-      ]);
-      setSellModal({ ...sellModal, isOpen: false });
-      fetchData();
-    } catch (err) {
-      alert('Sotuvda xatolik');
-    }
+    const saleSom = product.saleUsd * product.dollarRate;
+    const sumUsd = area * product.saleUsd;
+    const sumSom = area * saleSom;
+
+    // Update product quantity
+    setProducts(products.map(p => {
+      if (p.id === product.id) {
+        return { ...p, quantity: p.quantity - qty };
+      }
+      return p;
+    }));
+
+    // Add to sales record
+    const newSale = {
+      id: Date.now(),
+      productCode: product.code,
+      productName: product.name,
+      qty,
+      area,
+      sumSom,
+      sumUsd,
+      time: new Date().toLocaleString('uz-UZ')
+    };
+    setSales([newSale, ...sales]);
+    setSellModal({ ...sellModal, isOpen: false, value: '' });
   };
 
   const generatePDF = () => {
@@ -250,7 +264,7 @@ const App = () => {
   const stats = {
     totalValueUsd: products.reduce((acc, p) => acc + (p.quantity * p.size * p.saleUsd), 0),
     totalSalesUsd: sales.reduce((acc, s) => acc + s.sumUsd, 0),
-    totalArea: products.reduce((acc, p) => acc + p.totalArea, 0),
+    totalArea: products.reduce((acc, p) => acc + (p.quantity * p.size), 0),
     productCount: products.length
   };
 
@@ -399,8 +413,8 @@ const App = () => {
                       </td>
                       <td><span className={`badge ${cat === 'luxury' ? 'bg-amber-500/10 text-amber-500' : 'bg-emerald-500/10 text-emerald-500'}`}>{p.code}</span></td>
                       <td><div className="font-bold">{p.name}</div><div className="text-xs text-muted">m²: {p.size}</div></td>
-                      <td><div className="font-bold">{Math.round(p.quantity)} dona</div><div className="text-xs text-muted">{p.totalArea.toFixed(2)} m²</div></td>
-                      <td><div className="font-bold text-success">${p.saleUsd}</div><div className="text-xs text-muted">{p.saleSom.toLocaleString()} so'm</div></td>
+                      <td><div className="font-bold">{Math.round(p.quantity)} dona</div><div className="text-xs text-muted">{(p.quantity * p.size).toFixed(2)} m²</div></td>
+                      <td><div className="font-bold text-success">${p.saleUsd}</div><div className="text-xs text-muted">{(p.saleUsd * p.dollarRate).toLocaleString()} so'm</div></td>
                       <td>
                         <div className="flex gap-2">
                            <button onClick={() => setSellModal({ isOpen: true, product: p, mode: 'area', value: '' })} className="px-3 py-2 text-xs bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500 hover:text-white rounded-lg">m² sotish</button>
