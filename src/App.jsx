@@ -74,11 +74,35 @@ const CameraModal = ({ isOpen, onClose, onCapture }) => {
   };
 
   const capture = () => {
+    const video = videoRef.current;
     const canvas = document.createElement('canvas');
-    canvas.width = videoRef.current.videoWidth;
-    canvas.height = videoRef.current.videoHeight;
-    canvas.getContext('2d').drawImage(videoRef.current, 0, 0);
-    const data = canvas.toDataURL('image/jpeg');
+    
+    // Max dimensions for storage optimization
+    const MAX_WIDTH = 600;
+    const MAX_HEIGHT = 600;
+    
+    let width = video.videoWidth;
+    let height = video.videoHeight;
+
+    if (width > height) {
+      if (width > MAX_WIDTH) {
+        height *= MAX_WIDTH / width;
+        width = MAX_WIDTH;
+      }
+    } else {
+      if (height > MAX_HEIGHT) {
+        width *= MAX_HEIGHT / height;
+        height = MAX_HEIGHT;
+      }
+    }
+
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, width, height);
+    
+    // Convert to JPEG with 0.6 quality (significant size reduction)
+    const data = canvas.toDataURL('image/jpeg', 0.6);
     onCapture(data);
     onClose();
   };
@@ -156,8 +180,35 @@ const App = () => {
     const file = e.target.files[0];
     if (file) {
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setFormData({ ...formData, imageUrl: reader.result });
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const MAX_SIZE = 600;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > MAX_SIZE) {
+              height *= MAX_SIZE / width;
+              width = MAX_SIZE;
+            }
+          } else {
+            if (height > MAX_SIZE) {
+              width *= MAX_SIZE / height;
+              height = MAX_SIZE;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+          
+          const compressedData = canvas.toDataURL('image/jpeg', 0.6);
+          setFormData({ ...formData, imageUrl: compressedData });
+        };
+        img.src = event.target.result;
       };
       reader.readAsDataURL(file);
     }
