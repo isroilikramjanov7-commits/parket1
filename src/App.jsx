@@ -342,13 +342,29 @@ const App = () => {
             </select>
             
             <div className="flex flex-col gap-2">
-              <button 
-                type="button"
-                onClick={() => setCameraModalOpen(true)}
-                className="btn-success py-3 px-4 text-sm w-full"
-              >
-                <Camera size={18} /> Kamera ochish
-              </button>
+              <div className="grid grid-cols-2 gap-2">
+                <button 
+                  type="button"
+                  onClick={() => setCameraModalOpen(true)}
+                  className="btn-success py-3 px-2 text-xs flex items-center justify-center gap-2"
+                >
+                  <Camera size={16} /> Kamera
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => document.getElementById('gallery-input').click()}
+                  className="bg-indigo-500 hover:bg-indigo-600 text-white py-3 px-2 text-xs rounded-xl transition-all flex items-center justify-center gap-2"
+                >
+                  <ImageIcon size={16} /> Galereya
+                </button>
+                <input 
+                  id="gallery-input"
+                  type="file" 
+                  accept="image/*" 
+                  onChange={handleFileChange} 
+                  className="hidden" 
+                />
+              </div>
               {formData.imageUrl && (
                 <div className="relative w-full h-24 bg-gray-100 rounded-xl overflow-hidden border-2 border-primary/20">
                   <img src={formData.imageUrl} className="w-full h-full object-cover" alt="Preview" />
